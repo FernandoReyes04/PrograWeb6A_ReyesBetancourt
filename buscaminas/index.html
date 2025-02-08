@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscaminas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #tablero {
+            display: grid;
+            grid-template-columns: repeat(8, 30px);
+            gap: 2px;
+        }
+
+        .celda {
+            width: 30px;
+            height: 30px;
+            background-color: #ddd;
+            border: 1px solid #888;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .celda:hover {
+            background-color: #ccc;
+        }
+
+        .revelada {
+            pointer-events: none;
+        }
+
+        .mina {
+            background-color: red !important;
+        }
+    </style>
+</head>
+<body>
+    <label for="nivel">Selecciona el nivel:</label>
+    <select id="nivel">
+        <option value="">Ninguno</option>
+        <option value="facil" selected>Fácil</option>
+        <option value="medio">Medio</option>
+        <option value="dificil">Difícil</option>
+    </select>
+
+    <div id="tablero"></div>
+
+    <script>
+        const coloresNumeros = ["blue", "green", "red", "purple", "maroon", "turquoise", "black", "gray"];
+
+        function putFlag(e) {
+            e.preventDefault();
+            if (e.target.textContent === '') {
+                e.target.textContent = '🚩';
+                e.target.classList.add('flagged');
+            } else if (e.target.textContent === '🚩') {
+                e.target.textContent = '';
+                e.target.classList.remove('flagged');
+            }
+        }
+
+        function revealBox(e) {
+            if (e.target.classList.contains('flagged')) return;
+
+            const fila = e.target.getAttribute('data-fila');
+            const columna = e.target.getAttribute('data-columna');
+
+            fetch(window.location.href + 'revelar_celda.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fila, columna })
+            })
+            .then(response => response.json())
+            .then(data => {
+                e.target.classList.add('revelada');
+                if (data.valor != -1 && data.valor != 0) {
+                    e.target.setAttribute('style', `color: ${coloresNumeros[data.valor - 1]}`);
+                    e.target.textContent = data.valor;
+                } else if (data.valor == 0) {
+                    e.target.textContent = '';
+                    e.target.setAttribute('style', 'background-color: gray');
+                } else {
+                    e.target.textContent = '💣';
+                    setTimeout(() => revealAllMines(), 500);
+                    setTimeout(() => alert('Oh no! Has perdido, vuelve a intentarlo'), 600);
+                    setTimeout(() => location.reload(), 1000);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function revealAllMines() {
+            document.querySelectorAll('.celda').forEach(celda => {
+                const fila = celda.getAttribute('data-fila');
+                const columna = celda.getAttribute('data-columna');
+
+                fetch(window.location.href + 'revelar_celda.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fila, columna })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.valor == -1) {
+                        celda.textContent = '💣';
+                        celda.classList.add('mina');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            });
+        }
+
+        function generarTablero(filas, columnas) {
+            var tablero = document.getElementById("tablero");
+            tablero.innerHTML = "";
+
+            for (var i = 0; i < filas; i++) {
+                for (var j = 0; j < columnas; j++) {
+                    var celda = document.createElement("div");
+                    celda.className = "celda";
+                    celda.setAttribute("data-fila", i);
+                    celda.setAttribute("data-columna", j);
+                    celda.addEventListener("contextmenu", putFlag);
+                    celda.addEventListener("click", revealBox);
+                    tablero.appendChild(celda);
+                }
+            }
+            tablero.style.gridTemplateColumns = `repeat(${columnas}, 30px)`;
+        }
+
+        document.querySelector(`#nivel`).addEventListener('change', async () => {
+            var nivel = document.getElementById("nivel").value;
+            var filas, columnas;
+            switch (nivel) {
+                case "facil":
+                    filas = 8;
+                    columnas = 8;
+                    break;
+                case "medio":
+                    filas = 16;
+                    columnas = 16;
+                    break;
+                case "dificil":
+                    filas = 16;
+                    columnas = 36;
+                    break;
+            }
+
+            await fetch(window.location.href + 'generar_tablero.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nivel })
+            })
+            .then(response => response.json())
+            .then(data => gameboard = data.table)
+            .catch(error => console.error('Error:', error));
+
+            generarTablero(filas, columnas);
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("nivel").value = "";
+        });
+    </script>
+</body>
+</html>
